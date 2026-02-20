@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using Divine.Plugin;
 using Divine.Update;
 using Divine.Game;
+using Divine.Menu;
+using Divine.Menu.Items;
 
 namespace TelegramNotifier
 {
@@ -16,15 +18,31 @@ namespace TelegramNotifier
         private static readonly HttpClient Client = new HttpClient();
         private GameState _lastGameState = GameState.Undefined;
 
+        private Menu _mainMenu;
+        private MenuButton _testButton;
+
         protected override void OnActivate()
         {
+            // Создаем меню в самом чите Divine
+            _mainMenu = MenuManager.CreateRootMenu("TG Notifier");
+            _testButton = _mainMenu.CreateButton("Test Telegram Connection");
+            
+            // Действие при нажатии на кнопку теста
+            _testButton.MouseClick += (sender, e) => 
+            {
+                Task.Run(() => SendTelegramMessageAsync("🚀 ТЕСТ DIVINE: Кнопка в меню нажата, связь есть!"));
+            };
+
             UpdateManager.Update += OnUpdate;
-            SendTelegramMessageAsync("✅ Divine: Скрипт запущен! Жду поиск игры.");
+            
+            // Отправляем сообщение при старте асинхронно, чтобы не крашить Доту
+            Task.Run(() => SendTelegramMessageAsync("✅ Divine: Меню создано! Скрипт готов к поиску игры."));
         }
 
         protected override void OnDeactivate()
         {
             UpdateManager.Update -= OnUpdate;
+            MenuManager.RemoveRootMenu(_mainMenu);
         }
 
         private void OnUpdate()
@@ -35,18 +53,18 @@ namespace TelegramNotifier
             {
                 if (currentState == GameState.WaitingForPlayersToLoad)
                 {
-                    SendTelegramMessageAsync("🎮 ИГРА НАЙДЕНА! Принимаю и гружусь...");
+                    Task.Run(() => SendTelegramMessageAsync("🎮 ИГРА НАЙДЕНА! Загружаемся..."));
                 }
                 else if (currentState == GameState.PreGame || currentState == GameState.GameInProgress)
                 {
                     if (_lastGameState == GameState.WaitingForPlayersToLoad || _lastGameState == GameState.HeroSelection)
                     {
-                        SendTelegramMessageAsync("🚀 МАТЧ НАЧАЛСЯ!");
+                        Task.Run(() => SendTelegramMessageAsync("🚀 МАТЧ НАЧАЛСЯ!"));
                     }
                 }
                 else if (currentState == GameState.PostGame)
                 {
-                    SendTelegramMessageAsync("🏁 КАТКА ЗАКОНЧИЛАСЬ.");
+                    Task.Run(() => SendTelegramMessageAsync("🏁 КАТКА ЗАКОНЧИЛАСЬ."));
                 }
 
                 _lastGameState = currentState;
@@ -60,7 +78,10 @@ namespace TelegramNotifier
                 string url = $"https://api.telegram.org/bot{TgToken}/sendMessage?chat_id={ChatId}&text={Uri.EscapeDataString(text)}";
                 await Client.GetAsync(url);
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TG Notifier] Ошибка: {ex.Message}");
+            }
         }
     }
 }
